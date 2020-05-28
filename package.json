@@ -1,0 +1,17 @@
+{
+  "name": "firebase-scripts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index"
+  },
+  "repository": "https://github.com/ziro-app/firebase-scripts.git",
+  "keywords": [],
+  "author": "Vitor Barbosa",
+  "license": "ISC",
+  "dependencies": {
+    "@ziro/remove-duplicates": "^1.0.1",
+    "firebase-admin": "^8.12.1"
+  }
+}
