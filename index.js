@@ -6,6 +6,8 @@ admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
 const db = admin.firestore()
 
 const removeDuplicates = require('@ziro/remove-duplicates')
+const dateHourFormatterUTC3 = require('@ziro/format-date-utc3')
+const currencyFormat = require('@ziro/currency-format')
 
 const getAllPayments = async () => {
 	const cardPayments = await db.collection('credit-card-payments').get()
@@ -29,44 +31,4 @@ const getAllPaymentsToDelete = async () => {
 	console.log(result)
 }
 
-const getAllPaymentsAndSaveToSheet = async () => {
-	const cardPayments = await db.collection('credit-card-payments').get()
-	let dataToSheet = []
-	cardPayments.forEach(doc => {
-		const {
-			transactionZoopId,
-			date,
-			status,
-			installments,
-			seller,
-			buyerRazao,
-			cardholder,
-			brand,
-			firstFour,
-			lastFour,
-			charge,
-			fee_details,
-			fees
-		} = doc.data()
-		dataToSheet.push([
-			transactionZoopId,
-			date,
-			status,
-			'crédito',
-			installments,
-			seller,
-			buyerRazao,
-			cardholder,
-			brand,
-			`${firstFour}...${lastFour}`,
-			charge,
-			,
-			,
-			fees,
-			,
-		])
-	})
-	console.log(dataToSheet)
-}
-
-getAllPaymentsAndSaveToSheet()
+getAllPayments()
