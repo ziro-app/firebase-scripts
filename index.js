@@ -6,7 +6,7 @@ admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
 const db = admin.firestore()
 
 const removeDuplicates = require('@ziro/remove-duplicates')
-const dateHourFormatterUTC3 = require('@ziro/format-date-utc3')
+const { formatDateUTC } = require('@ziro/format-date-utc3')
 const currencyFormat = require('@ziro/currency-format')
 
 const getAllPayments = async () => {
@@ -22,6 +22,27 @@ const getAllSuppliersWithPayments = async () => {
 	console.log(removeDuplicates(sellers))
 }
 
+const getAllReceivables = async () => {
+	const cardPayments = await db.collection('credit-card-payments').where('status','==','Aprovado').get()
+	let receivables = []
+	cardPayments.forEach(doc => receivables.push({
+		id: doc.data().transactionZoopId,
+		receivables: doc.data().receivables
+	}))
+	const formatted = receivables.map(({ id, receivables: arrReceivable }) =>
+			arrReceivable.map(({ installment, gross_amount, amount, expected_on, paid_at, status }) => {
+			const grossAmount = gross_amount.replace('.',',')
+			const finalAmount = amount.replace('.',',')
+			const dateExpected = expected_on ? formatDateUTC(new Date(expected_on._seconds * 1000)) : ''
+			const [expected] = typeof dateExpected === 'string' ? dateExpected.split(' ') : ''
+			const datePaid = paid_at ? formatDateUTC(new Date(paid_at._seconds * 1000)) : ''
+			const [paid] = typeof datePaid === 'string' ? datePaid.split(' ') : ''
+			const translatedStatus = status.toLowerCase() === 'pending' ? 'Pendente' : 'Pago'
+			return [id, installment, grossAmount, finalAmount, expected, paid, translatedStatus]
+	}))
+	console.log(formatted.flat())
+}
+
 const getAllPaymentsToDelete = async () => {
 	const cardPayments = await db.collection('credit-card-payments').where('seller','==','Lojas Marisa').get()
 	console.log(cardPayments)
@@ -31,4 +52,4 @@ const getAllPaymentsToDelete = async () => {
 	console.log(result)
 }
 
-getAllPayments()
+getAllReceivables()
