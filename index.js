@@ -1,5 +1,5 @@
 // Referência da API Admin -> https://firebase.google.com/docs/reference/admin/node/admin.auth.Auth
-
+require('dotenv').config()
 const admin = require('firebase-admin')
 const serviceAccount = require('./account_key.json')
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) })
@@ -8,6 +8,7 @@ const db = admin.firestore()
 const removeDuplicates = require('@ziro/remove-duplicates')
 const { formatDateUTC } = require('@ziro/format-date-utc3')
 const currencyFormat = require('@ziro/currency-format')
+const axios = require('axios')
 
 const getAllPayments = async () => {
 	const cardPayments = await db.collection('credit-card-payments').get()
@@ -52,4 +53,21 @@ const getAllPaymentsToDelete = async () => {
 	console.log(result)
 }
 
-getAllReceivables()
+const fetchZoopEvents = async () => {
+	const { data } = await axios({
+		url: process.env.ZOOP_EVENT_URL,
+		method: 'GET',
+		headers: {
+			'Authorization': process.env.ZOOP_TOKEN,
+			'Content-Type': 'application/json'
+		},
+		params: {
+			'date_range[gte]': '2020-06-01T01:00:00'
+		}
+	})
+	// console.log(Object.keys(data))
+	const events = data.items.map(({ type }) => type).sort((a,b) => a < b ? -1 : 1)
+	console.log(removeDuplicates(events))
+}
+
+fetchZoopEvents()
