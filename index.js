@@ -53,7 +53,7 @@ const getAllPaymentsToDelete = async () => {
 	console.log(result)
 }
 
-const fetchZoopEvents = async () => {
+const fetch = async (dateMin, dateMax, offset) => {
 	const { data } = await axios({
 		url: process.env.ZOOP_EVENT_URL,
 		method: 'GET',
@@ -62,12 +62,35 @@ const fetchZoopEvents = async () => {
 			'Content-Type': 'application/json'
 		},
 		params: {
-			'date_range[gte]': '2020-06-01T01:00:00'
+			'date_range[gte]': dateMin,
+			'date_range[lte]': dateMax,
+			offset: offset ? offset : 0
 		}
 	})
-	// console.log(Object.keys(data))
-	const events = data.items.map(({ type }) => type).sort((a,b) => a < b ? -1 : 1)
-	console.log(removeDuplicates(events))
+	return data
+}
+
+const fetchZoopEvents = async () => {
+	const dateMin = '2020-07-01T01:00:00'
+	const dateMax = '2020-07-02T01:00:00'
+	const data = await fetch(dateMin, dateMax)
+	const { items, total } = data
+	const numberOfRequests = Math.ceil(total / 100)
+	console.log('total requests:',numberOfRequests)
+	console.log('total items:',total)
+	if (data.has_more) {
+		for (let i = 0; i < Math.ceil(data.total / 100) - 1; i++) {
+			const { items: items_more } = await fetch(dateMin, dateMax, 100 + i * 100)
+			items.push(...items_more)
+			console.log('items mapped:',items.length)
+		}
+		const events = items.map(({ type }) => type).sort((a,b) => a < b ? -1 : 1)
+		console.log(removeDuplicates(events))
+	} else {
+		console.log('items mapped:',items.length)
+		const events = items.map(({ type }) => type).sort((a,b) => a < b ? -1 : 1)
+		console.log(removeDuplicates(events))
+	}
 }
 
 fetchZoopEvents()
