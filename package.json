@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index"
+    "start": "node index",
+    "update:whats": "node updateMissingWhats.js",
+    "update:tel": "node updateMissingPhone.js",
+    "update:brokentel": "node updateBrokenPhone.js"
   },
   "repository": "https://github.com/ziro-app/firebase-scripts.git",
   "keywords": [],
