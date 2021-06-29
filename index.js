@@ -24,6 +24,27 @@ const formatDate = utcDate => {
 	return `${parseInt(day) <= 9 ? `0${day}` : day}/${parseInt(mounth) <= 9 ? `0${mounth}` : mounth}/${year} ${_hour}`;
 };
 
+const getSubcollectionsInEmptyDoc = async (collectionName = 'retailers') => {
+	let collectionRef = db.collection(collectionName);
+	const listDocuments = await collectionRef.listDocuments();
+	listDocuments.map(async it => {
+		const allDocs = await db.getAll(it);
+		allDocs.forEach(async doc => {
+			if (!doc.exists) {
+				console.log(`Documento perdido: ${doc.id}`);
+				const docRef = await db.collection(collectionName).doc(doc.id)
+				const collections = await docRef.listCollections();
+				console.log(`Total de subcoleções: ${collections.length}`);
+				collections.forEach(async collection => {
+					const docs = await collection.get();
+					console.log(`Subcoleção: ${collection.id} - ${docs.size} documento(s)`);
+					console.log('###############################################################');
+				});
+			}
+		});
+	});
+};
+
 // Situação -> Transação passou na Zoop e não atualizou nas 2 bases (Com seguro)
 const updateFirebase = async () => await db.collection('credit-card-payments').doc('##docID##').update({
 	status: "Status_Transacao",
@@ -166,9 +187,10 @@ const fetchZoopEvents = async () => {
 	}
 }
 
-fetchZoopEvents();
+//fetchZoopEvents();
 
 // Funções para corrigir erros de escrita no firebase e planilhas
 // updateFirebase();
 // updateSheet();
 // -> Após rodar essas funções, lembrar de rodar o webhook transaction
+getSubcollectionsInEmptyDoc();
