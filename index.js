@@ -24,25 +24,71 @@ const formatDate = utcDate => {
 	return `${parseInt(day) <= 9 ? `0${day}` : day}/${parseInt(mounth) <= 9 ? `0${mounth}` : mounth}/${year} ${_hour}`;
 };
 
-const getSubcollectionsInEmptyDoc = async (collectionName = 'retailers') => {
+async function deleteCollectionPath(collectionPath, batchSize) {
+	const collectionRef = db.collection(collectionPath);
+	const query = collectionRef.limit(batchSize);
+
+	return new Promise((resolve, reject) => {
+		deleteQueryBatch(query, resolve).catch(reject);
+	});
+}
+
+async function deleteQueryBatch(query, resolve) {
+	if (query && query.get()) {
+		const snapshot = await query.get();
+
+		const batchSize = snapshot.size;
+		if (batchSize === 0) {
+			// When there are no documents left, we are done
+			resolve();
+			return;
+		}
+
+		// Delete documents in a batch
+		const batch = db.batch();
+		snapshot.docs.forEach((doc) => {
+			batch.delete(doc.ref);
+		});
+		await batch.commit();
+
+		// Recurse on the next process tick, to avoid
+		// exploding the stack.
+		process.nextTick(() => {
+			deleteQueryBatch(query, resolve);
+		});
+	}
+}
+
+/** Varre todos os documentos em até 2 níveis de subcoleção */
+const deleteAll = async (docRef) => {
+	const hasCollections = await docRef.listCollections();
+	if (!(hasCollections && hasCollections.length)) return new Promise(async (resolve, reject) => {
+		await deleteQueryBatch(docRef, resolve).catch(reject);
+	});
+	else {
+		return await Promise.all(hasCollections.map(async ref => {
+			const data = await ref.get();
+			data.docs.map(async it => {
+				const hasInternalCollection = await it.ref.listCollections();
+				hasInternalCollection.map(async internal => await deleteCollectionPath(internal.path, 20));
+			});
+			await deleteCollectionPath(ref.path, 20);
+		}));
+	}
+};
+
+/** Encontra documentos 'corrompidos' em uma coleção, apaga seus campos e subcoleções  */
+const deleteSubcollectionsInEmptyDoc = async (collectionName = 'retailers') => {
 	let collectionRef = db.collection(collectionName);
 	const listDocuments = await collectionRef.listDocuments();
-	listDocuments.map(async it => {
-		const allDocs = await db.getAll(it);
-		allDocs.forEach(async doc => {
-			if (!doc.exists) {
-				console.log(`Documento perdido: ${doc.id}`);
-				const docRef = await db.collection(collectionName).doc(doc.id)
-				const collections = await docRef.listCollections();
-				console.log(`Total de subcoleções: ${collections.length}`);
-				collections.forEach(async collection => {
-					const docs = await collection.get();
-					console.log(`Subcoleção: ${collection.id} - ${docs.size} documento(s)`);
-					console.log('###############################################################');
-				});
-			}
+	const docsErased = [];
+	await Promise.all(listDocuments.map(async it => {
+		const all = await db.getAll(it);
+		all.forEach(async doc => {
+			if (!doc.exists) docsErased.push(doc.ref);
 		});
-	});
+	}));
+	await Promise.all(docsErased.map(async it => await deleteAll(it)));
 };
 
 // Situação -> Transação passou na Zoop e não atualizou nas 2 bases (Com seguro)
@@ -187,10 +233,10 @@ const fetchZoopEvents = async () => {
 	}
 }
 
-//fetchZoopEvents();
+// fetchZoopEvents();
 
 // Funções para corrigir erros de escrita no firebase e planilhas
 // updateFirebase();
 // updateSheet();
 // -> Após rodar essas funções, lembrar de rodar o webhook transaction
-getSubcollectionsInEmptyDoc();
+deleteSubcollectionsInEmptyDoc();
