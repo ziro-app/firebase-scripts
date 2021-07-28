@@ -10,6 +10,96 @@ const { formatDateUTC, formatDateUTC3 } = require('@ziro/format-date-utc3')
 const currencyFormat = require('@ziro/currency-format')
 const axios = require('axios')
 
+const changeCollaboratorsDocId = async () => {
+	const collaborators = await db.collection('collaborators').where('status', '==', 'Aprovado').get();
+	await Promise.all(collaborators.docs.map(async collaborator => {
+		const { uid, cadastro, ...rest } = collaborator.data()
+		if (uid !== collaborator.id) {
+			await db.collection('collaborators').doc(uid).set({
+				uid,
+				cadastro: admin.firestore.Timestamp.fromDate(new Date(cadastro.seconds * 1000)),
+				...rest
+			})
+			await db.collection('collaborators').doc(collaborator.id).delete();
+		}
+	}));
+};
+
+const updateCollectionUsers = async () => {
+	const userDocs = await db.collection('users').where('app', '==', 'catalog').limit(300).get()
+	await Promise.all(userDocs.docs.map(async doc => {
+		if (doc.exists) {
+			await db.collection('users').doc(doc.id).update({ app: 'retailers' })
+		}
+	}));
+}
+
+const updateRetailers = async () => {
+	const storeowners = await db.collection('storeowners').get()
+	const retailers = await db.collection('retailers').get()
+	const storeownersZoopIds = []
+	const retailersZoopIds = []
+	storeowners.forEach(storeowner => {
+		if (storeowner.exists) {
+			const { zoopId } = storeowner.data()
+			if (zoopId) storeownersZoopIds.push(zoopId)
+		}
+	})
+	retailers.forEach(retailer => {
+		if (retailer.exists) {
+			const { zoopId } = retailer.data()
+			retailersZoopIds.push(zoopId)
+		}
+	})
+	console.log(`Coleção retailers: ${retailersZoopIds.length} documentos`)
+	console.log(`Total de documentos na coleção storeowners: ${storeowners.size}`)
+	console.log(`Storeowners com zoopId: ${storeownersZoopIds.length}`)
+	const promises = [];
+	storeowners.forEach(doc => {
+		if (doc.exists && doc.data().zoopId) {
+			const { zoopId } = doc.data();
+			if (zoopId && !retailersZoopIds.includes(zoopId)) {
+				const { bairro, cadastro, cep, cidade, cnpj, email, endereco,
+					estado, fantasia, fname, fone, instagram, lname, linkOrigin, lojaFisica,
+					razao, registerComplete, uid, whatsapp } = doc.data();
+				let retailer = {
+					address: {
+						city: cidade,
+						neighborhood: bairro,
+						state: estado,
+						street: endereco,
+						zip: cep
+					},
+					business: {
+						cnpj,
+						razao,
+						fantasia
+					},
+					dateCreated: admin.firestore.Timestamp.fromDate(new Date(cadastro.seconds * 1000)),
+					email,
+					person: {
+						avatar: '',
+						name: `${fname.trim()} ${lname.trim()}`,
+						whatsapp: whatsapp || ''
+					},
+					uid,
+					zoopId
+				}
+				if (linkOrigin) retailer['linkOrigin'] = linkOrigin
+				promises.push(retailer);
+			}
+		}
+	})
+	console.log(`Quantidade de storeowners que não estão na retailers: ${promises.length}`)
+	await Promise.all(promises.map(async pr => {
+		try {
+			await db.collection('retailers').doc(pr.uid).set({ ...pr })
+		} catch (error) {
+			console.log('Error uid: ', pr.uid, error);
+		}
+	}));
+}
+
 const formatHour = time => {
 	const [dateHour, period] = time.split(' ');
 	const [hour, minute, second] = dateHour.split(':');
